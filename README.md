@@ -29,7 +29,9 @@ This is an IK rig with a set of [Cascadeur](https://cascadeur.com/)-inspired fea
 
 Found inside `BizarreMorrowindRig.blend`.
 A mystical-magical IK rig that does everything for you and creates perfect animations in 2 clicks.
+
 I might've slightly exaggerated just now.
+
 Yet, it does contain some unusual features that you won't find in other rigs—features that, hopefully, will make it much easier and faster to create good-looking animations.
 
 
@@ -38,11 +40,15 @@ Bizarre rig-related features are contained inside the `Bizarre Armature Bone` se
 
 - **Autoposing**:
   Available on the hip, spine, and shoulder bones—if enabled, it adjusts those bones' rotations automatically when you move `IK` controllers (blue arm/feet controllers) around.
+  
 ![alt text](images/autopose.gif)
+
 - **Mixed Kinematics**:
   The kinematics mode dropdown is available when one of the `IK` controllers is selected. Mixed Kinematics is a hybrid of Blender's `IK` and `FK` modes. When you move a _`Mixed Kinematics`_ controller around, the corresponding limb functions as an `IK` limb, but when you release the controller, the limb returns to its regular constraint-less `FK` mode. Additionally, if you key a controller using the `I` shortcut in the 3D viewport, all the relevant limb and autopose bones will be keyed automatically.
+
 ![alt text](images/mixed_kinematics.gif)
-Note above how, although IK controller transitions linearly between 2 points - it's corresponding limb moves in a natural ark - that's _`Mixed Kinematics`_!
+
+See how above although IK controller transitions linearly between 2 points - it's corresponding limb moves in a natural ark - that's _`Mixed Kinematics`_!
 
 This should be stressed again—both _`Mixed Kinematics`_ and _`Auto-posing`_ only do their magic when you drag `IK` controllers around! When you release them, the armature becomes a regular, unassuming, bog-standard Blender armature. Although all relevant bones are keyed automatically if you press the `I` shortcut, understanding the fact that those bones are indeed keyed might be useful in case you want to move them around in the `Action Editor`.
 
@@ -56,6 +62,7 @@ This should be stressed again—both _`Mixed Kinematics`_ and _`Auto-posing`_ on
 
 
 Also try [Wiggle 2](https://github.com/shteeve3d/blender-wiggle-2)
+
 ![alt text](images/wiggle.gif)
 
 
