@@ -173,49 +173,51 @@ class ExportAnimationOperator(bpy.types.Operator):
                 self.report({'ERROR'}, f"Reference armature '{reference_armature_name}' not found in external file.")
                 return {'CANCELLED'}
 
-            # Filter bones based on the reference armature
-            reference_bone_names = {bone.name for bone in reference_armature.data.bones}
-            for fcurve in temp_action.fcurves[:]:
-                bone_name = fcurve.data_path.split('"')[1] if '"' in fcurve.data_path else None
-                if bone_name and bone_name not in reference_bone_names and bone_name not in retained_extra_bones:
-                    temp_action.fcurves.remove(fcurve)
+            try:
+                # Filter bones based on the reference armature
+                reference_bone_names = {bone.name for bone in reference_armature.data.bones}
+                for fcurve in temp_action.fcurves[:]:
+                    bone_name = fcurve.data_path.split('"')[1] if '"' in fcurve.data_path else None
+                    if bone_name and bone_name not in reference_bone_names and bone_name not in retained_extra_bones:
+                        temp_action.fcurves.remove(fcurve)
 
-            # Apply Decimate to all keyframes using graph.decimate
-            bpy.ops.object.mode_set(mode='POSE')
-            current_area_type = bpy.context.area.type
-            bpy.context.area.type = 'GRAPH_EDITOR'
-            bpy.ops.graph.select_all(action='SELECT')
-            bpy.ops.graph.decimate(mode='ERROR', remove_error_margin=0.000005)
-            bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.context.area.type = current_area_type
+                # Apply Decimate to all keyframes using graph.decimate
+                bpy.ops.object.mode_set(mode='POSE')
+                bpy.ops.pose.select_all(action='SELECT')  # Select all bones in pose mode
+                current_area_type = bpy.context.area.type
+                bpy.context.area.type = 'GRAPH_EDITOR'
+                bpy.ops.graph.select_all(action='SELECT')  # Select all keyframes in the graph editor
+                bpy.ops.graph.decimate(mode='ERROR', remove_error_margin=0.000005)
+                bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.context.area.type = current_area_type
 
-            # Get the sanitized action name without tags
-            action_name = sanitize_filename(remove_tags(temp_action.name))
+                # Get the sanitized action name without tags
+                action_name = sanitize_filename(remove_tags(temp_action.name))
 
-            # Select the currently active armature if its name starts with "Bip01" or "Bip01."            
-            current_armature = context.object
-            if current_armature and current_armature.type == 'ARMATURE':
-                original_name = current_armature.name  # Save the original name
-                if not (current_armature.name.startswith('Bip01') or current_armature.name.startswith('Bip01.')):
-                    current_armature.name = "Bip01"  # Temporarily rename the armature
+                # Select the currently active armature if its name starts with "Bip01" or "Bip01."
+                current_armature = context.object
+                if current_armature and current_armature.type == 'ARMATURE':
+                    original_name = current_armature.name  # Save the original name
+                    if not (current_armature.name.startswith('Bip01') or current_armature.name.startswith('Bip01.')):
+                        current_armature.name = "Bip01"  # Temporarily rename the armature
 
-                try:
-                    bpy.context.view_layer.objects.active = current_armature
-                    current_armature.select_set(True)
+                    try:
+                        bpy.context.view_layer.objects.active = current_armature
+                        current_armature.select_set(True)
 
-                    # Export the object
-                    export_path = f"{export_folder}{action_name}.nif"
-                    print(f"Exporting animation to: {export_path}")
-                    bpy.ops.export_scene.mw(filepath=export_path, use_selection=True, export_animations=True, extract_keyframe_data=True)
-                finally:
-                    # Restore the original name after export
-                    current_armature.name = original_name
-            else:
-                self.report({'ERROR'}, "No valid armature selected or active armature name does not start with 'Bip01' or 'Bip01.'.")
-                return {'CANCELLED'}
-
-            # Remove the reference armature from the scene after exporting
-            remove_object_from_scene(reference_armature_name)
+                        # Export the object
+                        export_path = f"{export_folder}{action_name}.nif"
+                        print(f"Exporting animation to: {export_path}")
+                        bpy.ops.export_scene.mw(filepath=export_path, use_selection=True, export_animations=True, extract_keyframe_data=True)
+                    finally:
+                        # Restore the original name after export
+                        current_armature.name = original_name
+                else:
+                    self.report({'ERROR'}, "No valid armature selected or active armature name does not start with 'Bip01' or 'Bip01.'.")
+                    return {'CANCELLED'}
+            finally:
+                # Ensure the reference armature is removed from the scene
+                remove_object_from_scene(reference_armature_name)
 
         else:
             self.report({'ERROR'}, "No animation action found on the current object.")
@@ -272,8 +274,13 @@ class TransferToBeastsOperator(bpy.types.Operator):
         
         driver_armature.animation_data.action = cloned_action        
         
-        # Clear the action on the Khajiit armature
-        khajiit_armature.animation_data.action = None
+        # Set the Khajiit armature's action to "Khajiit Default Stance" if it exists
+        default_stance_action = bpy.data.actions.get("Khajiit Default Stance")
+        if default_stance_action:
+            khajiit_armature.animation_data.action = default_stance_action
+        else:
+            self.report({'ERROR'}, "Can't find Khajiit Default Stance action. It should've been imported together with Khajiit armature. Can't continue.")
+            return {'CANCELLED'}
 
         # Bake the action for the Khajiit armature
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -289,6 +296,12 @@ class TransferToBeastsOperator(bpy.types.Operator):
         baked_action = khajiit_armature.animation_data.action
         if baked_action:
             baked_action.name = f"[Baked][Beast] Beast {remove_tags(original_action_name)}"
+
+            # Transfer markers from the original action to the baked action
+            if original_action and original_action.pose_markers:
+                for marker in original_action.pose_markers:
+                    new_marker = baked_action.pose_markers.new(name=marker.name)
+                    new_marker.frame = marker.frame
 
         # Ensure the Khajiit armature is selected and active
         bpy.ops.object.mode_set(mode='OBJECT')

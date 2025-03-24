@@ -54,7 +54,7 @@ This should be stressed again—both _`Mixed Kinematics`_ and _`Auto-posing`_ on
 
 ## Installation
 
-0. Requires [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases). Note that _`Mixed Kinematics`_ and _`Auto-posing`_ only work in `Blender 4.3+` but, at the time of writing, `Blender Morrowind Plugin` doesn't - it only works on up to `4.1`. In short - if you are only interested in beast retargeting and easy export - use `Blender 4.1`. If you want to witness the magic of _`Bizarre Rig`_ - use `4.3+` to make your animations and then `4.1` to export. Eventually [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases) will be updated to work with later version of Blender and this version juggling will not be necessary.
+0. Requires `Blender 4.3+` and [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases). Be sure to update your [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases) if you already have it installed.
 1. Download the repository as an archive.
 2. Enable the addon in Blender via `Edit > Preferences > Add-ons > Top-right arrow > Install from Disk`, and point it at the downloaded `.zip` archive.
 3. Enable the addon if it wasn't enabled by default.
