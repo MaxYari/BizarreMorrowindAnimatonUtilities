@@ -3,6 +3,17 @@ from .utils import is_bizarre_armature, is_ik_chain_target_bone, is_auto_posing_
 from .exporter import ExportAnimationOperator, TransferToBeastsOperator
 from .operators import MuteConstraintsOperator, RestoreConstraintsOperator
 
+# Check Blender version
+BLENDER_VERSION = bpy.app.version
+
+
+def add_separator(layout, factor=1.0, separator_type='LINE'):
+    """Add a separator to the layout, compatible with different Blender versions."""
+    if bpy.app.version >= (4, 3, 0):
+        layout.separator(factor=factor, type=separator_type)
+    else:
+        layout.separator(factor=factor)
+
 class IKPanel(bpy.types.Panel):
     bl_label = "Bizarre Armature Bone"
     bl_idname = "OBJECT_PT_anim_utils"
@@ -18,7 +29,9 @@ class IKPanel(bpy.types.Panel):
         box = layout.box()
         
         column = box.column()
-        column.separator(factor=1.0, type='LINE')
+
+        # Add separator
+        add_separator(column, factor=1.0, separator_type='LINE')
         
         if armature and is_bizarre_armature(armature):
             # Ensure IK map is built for the armature
@@ -49,7 +62,10 @@ class BoneGroupsPanel(bpy.types.Panel):
         layout = self.layout
         box = layout.box()
         column = box.column()
-        column.separator(factor=1.0, type='LINE')
+
+        # Add separator
+        add_separator(column, factor=1.0, separator_type='LINE')
+
         column.label(text="Quickly save and invoke bone selection groups",icon="INFO")
         column.label(text="Assign: Ctrl + Number")
         column.label(text="Select: Number")
@@ -68,17 +84,21 @@ class ExportPanel(bpy.types.Panel):
 
         box = layout.box()
         column = box.column()
-        column.separator(factor=1.0, type='LINE')
+
+        # Add separator
+        add_separator(column, factor=1.0, separator_type='LINE')
 
         # Transfer to Beasts button
         column.label(text="Conversion to Khajiit/Argonian",icon="ARMATURE_DATA")
-        column.separator(factor=0.5, type='SPACE')
+        add_separator(column, factor=0.5, separator_type='SPACE')
         column.operator(TransferToBeastsOperator.bl_idname, text="Transfer to Beasts")
-        column.separator(factor=1.0, type='SPACE')
+        add_separator(column, factor=1.0, separator_type='SPACE')
 
         box = layout.box()
         column = box.column()
-        column.separator(factor=1.0, type='LINE')
+
+        # Add separator
+        add_separator(column, factor=1.0, separator_type='LINE')
 
         # Export folder field
         column.label(text="Export Folder:",icon="FILE_FOLDER")
@@ -93,21 +113,23 @@ class ExportPanel(bpy.types.Panel):
         column.prop(addon_prefs, "export_as", text="")        
 
         # Export button
-        column.separator(factor=1.0, type='SPACE')
-        column.separator(factor=1.0, type='LINE')
-        column.separator(factor=1.0, type='SPACE')
+        add_separator(column, factor=1.0, separator_type='SPACE')
+        add_separator(column, factor=1.0, separator_type='LINE')
+        add_separator(column, factor=1.0, separator_type='SPACE')
         column.operator(ExportAnimationOperator.bl_idname, text="Export Animation")
-        column.separator(factor=1.0, type='SPACE')
+        add_separator(column, factor=1.0, separator_type='SPACE')
         
 
         box = layout.box()
         column = box.column()        
-        column.separator(factor=1.0, type='LINE')
+
+        # Add separator
+        add_separator(column, factor=1.0, separator_type='LINE')
         
 
         # Constraints management section        
         column.label(text="Constraints management",icon="CONSTRAINT_BONE")
-        column.separator(factor=0.5, type='SPACE')
+        add_separator(column, factor=0.5, separator_type='SPACE')
 
         # Buttons for muting and restoring constraints
         row = column.row(align=True)
@@ -115,7 +137,7 @@ class ExportPanel(bpy.types.Panel):
         row.operator(RestoreConstraintsOperator.bl_idname, text="Restore Constraints")
 
         column.label(text="Removing constraints allows you to properly view baked actions.", icon="INFO")
-        column.separator(factor=1.0, type='SPACE')
+        add_separator(column, factor=1.0, separator_type='SPACE')
 
 # Define custom properties for bones
 def register_bone_properties():
