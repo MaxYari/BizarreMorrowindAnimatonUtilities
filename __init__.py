@@ -2,8 +2,8 @@ bl_info = {
     "name": "Bizarre Morrowind Anim Utils",
     "description": "Hybrid IK/FK manipulations and constrained assist for Blender",
     "author": "Maksim Eremenko",
-    "version": (1, 0, 0),
-    "blender": (3, 0, 0),
+    "version": (1, 1, 0),
+    "blender": (4, 3, 0),
     "location": "View3D > UI > Bizarre Anim",
     "category": "Animation",
 }
