@@ -6,6 +6,7 @@ limb_ik_bones = ["Bip01 Forearm.L", "Bip01 Forearm.R", "Bip01 Calf.L", "Bip01 Ca
 upper_body_autopose_bones = ["Bip01 Spine1", "Bip01 Spine2", "Bip01 Clavicle.L", "Bip01 Clavicle.R"]
 lower_body_autopose_bones = ["Bip01 Pelvis"]
 all_autopose_bones = upper_body_autopose_bones + lower_body_autopose_bones
+transformable_autopose_bones = ["Bip01 Pelvis"]
 
 # Shared data
 ik_target_to_autopose_map = {
@@ -112,6 +113,9 @@ def is_auto_posing_bone(pose_bone):
     if pose_bone.name in all_autopose_bones:
         return True
     return False
+
+def is_transformable_auto_posing_bone(pose_bone):
+    return is_auto_posing_bone(pose_bone) and pose_bone.name in transformable_autopose_bones
 
 def assign_bone_group(group_number):
     """Assign selected bones to a group."""

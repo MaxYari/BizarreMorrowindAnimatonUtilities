@@ -39,7 +39,7 @@ Yet, it does contain some unusual features that you won't find in other rigs—f
 Bizarre rig-related features are contained inside the `Bizarre Armature Bone` section, which is active when a bone of the Bizarre rig is selected.
 
 - **Autoposing**:
-  Available on the hip, spine, and shoulder bones—if enabled, it adjusts those bones' rotations automatically when you move `IK` controllers (blue arm/feet controllers) around.
+  Available on the hip, spine, and shoulder bones—if enabled, it adjusts those bones' rotations automatically when you move `IK` controllers (blue arm/feet controllers) around. You need to disable autoposing on a bone to be able to adjust it manually (There's a hotkey! `ctrl+a`); with a happy exception of a pelvis bone, which autopose setup is so simple that it can be both autoposed and manually adjusted at the same time.
 
 ![alt text](images/autopose.gif)
 
@@ -56,7 +56,7 @@ This should be stressed again—both _`Mixed Kinematics`_ and _`Auto-posing`_ on
 
 0. Requires `Blender 4.3+` and [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases). Be sure to update your [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases) if you already have it installed.
 1. Download the repository as an archive.
-2. Enable the addon in Blender via `Edit > Preferences > Add-ons > Top-right arrow > Install from Disk`, and point it at the downloaded `.zip` archive.
+2. Install addon in Blender via `Edit > Preferences > Add-ons > Top-right arrow > Install from Disk`, and point it at the downloaded `.zip` archive.
 3. Enable the addon if it wasn't enabled by default.
 4. Enjoy.
 

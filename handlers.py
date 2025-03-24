@@ -1,6 +1,6 @@
 import bpy
 from bpy.app.handlers import persistent
-from .utils import is_bizarre_armature, ik_maps, build_ik_map, is_auto_posing_bone, apply_visual_transform, toggle_ik
+from .utils import ik_maps, is_bizarre_armature, build_ik_map, is_auto_posing_bone, is_transformable_auto_posing_bone, apply_visual_transform, toggle_ik
 
 ignoreDepsgraphUpdate = False
 previous_is_manipulated = False
@@ -86,18 +86,10 @@ def check_manipulation(scene, depsgraph):
                 return
 
             for bone in selected_bones:
-                if bone.bone.auto_posing and is_auto_posing_bone(bone):
+                if bone.bone.auto_posing and is_auto_posing_bone(bone) and not is_transformable_auto_posing_bone(bone):
                     # Reset the bone's rotation using the reference armature
                     apply_quaternion_from_reference(reference_armature, armature, bone.name)
-                    # Display an error message
-                    """ bpy.ops.object.mode_set(mode='OBJECT')  # Temporarily switch to object mode to display the error
-                    bpy.ops.object.mode_set(mode='POSE')   # Switch back to pose mode
-                    bpy.context.window_manager.popup_menu(
-                        lambda self, context: self.layout.label(text="Disable auto-posing before manipulation"),
-                        title="Error",
-                        icon='ERROR'
-                    ) """
-                    # print(f"Manipulation prevented for auto-posing bone: {bone.name}")
+                    
 
         # Handle ghost bones during manipulation
         # This is a very sneaky way to sometimes force blender to not break in dependency cycles
@@ -188,7 +180,8 @@ def check_manipulation(scene, depsgraph):
                             fetch_constraints_from_reference(reference_armature, armature, bone.name)
 
                             # Fetch quaternion rotation from the reference armature
-                            apply_quaternion_from_reference(reference_armature, armature, bone.name)
+                            if not is_transformable_auto_posing_bone(bone):
+                                apply_quaternion_from_reference(reference_armature, armature, bone.name)
 
                 # Handle IK chains during manipulation
                 for ik_data in ik_maps.get(armature, {}).values():
