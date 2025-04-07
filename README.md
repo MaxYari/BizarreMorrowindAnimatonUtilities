@@ -54,7 +54,7 @@ This should be stressed again—both _`Mixed Kinematics`_ and _`Auto-posing`_ on
 
 ## Installation
 
-0. Requires `Blender 4.3+` and [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases). Be sure to update your [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases) if you already have it installed.
+0. *Requires `Blender 4.3`* (At the moment works only in that version of Blender) and [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases). Be sure to update your [Blender Morrowind Plugin](https://github.com/Greatness7/io_scene_mw/releases) if you already have it installed.
 1. Download the repository as an archive.
 2. Install addon in Blender via `Edit > Preferences > Add-ons > Top-right arrow > Install from Disk`, and point it at the downloaded `.zip` archive.
 3. Enable the addon if it wasn't enabled by default.
