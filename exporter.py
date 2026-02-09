@@ -142,12 +142,14 @@ class ExportAnimationOperator(bpy.types.Operator):
                 temp_action = original_action.copy()
                 temp_action.name = f"[Baked][Temp] {remove_tags(original_action_name)}"
                 obj.animation_data.action = temp_action
+                obj.animation_data.action_slot = temp_action.slots[0]
             elif has_raw_tag(original_action_name):
 
                 # Copy the action and rename it
                 temp_action = original_action.copy()
                 temp_action.name = replace_raw_with_baked(original_action_name)
                 obj.animation_data.action = temp_action
+                obj.animation_data.action_slot = temp_action.slots[0]
 
                 # Get all keyframes for the action
                 keyframes = [kp.co[0] for fcurve in temp_action.fcurves for kp in fcurve.keyframe_points]
@@ -251,6 +253,7 @@ class TransferToBeastsOperator(bpy.types.Operator):
         cloned_action = original_action.copy()
         cloned_action.name = replace_raw_with_baked(original_action_name)
         obj.animation_data.action = cloned_action
+        obj.animation_data.action_slot = cloned_action.slots[0]
 
         keyframes = [kp.co[0] for fcurve in cloned_action.fcurves for kp in fcurve.keyframe_points]
         start_frame = int(min(keyframes))
@@ -272,12 +275,14 @@ class TransferToBeastsOperator(bpy.types.Operator):
                 self.report({'ERROR'}, "Driver armature 'Khajiit Retarget Driver Armature' or 'Khajiit Armature' not found in external file.")
                 return {'CANCELLED'}      
         
-        driver_armature.animation_data.action = cloned_action        
+        driver_armature.animation_data.action = cloned_action
+        driver_armature.animation_data.action_slot = cloned_action.slots[0]
         
         # Set the Khajiit armature's action to "Khajiit Default Stance" if it exists
         default_stance_action = bpy.data.actions.get("Khajiit Default Stance")
         if default_stance_action:
             khajiit_armature.animation_data.action = default_stance_action
+            khajiit_armature.animation_data.action_slot = default_stance_action.slots[0]
         else:
             self.report({'ERROR'}, "Can't find Khajiit Default Stance action. It should've been imported together with Khajiit armature. Can't continue.")
             return {'CANCELLED'}
