@@ -102,6 +102,204 @@ def remove_object_from_scene(object_name):
         bpy.data.objects.remove(obj, do_unlink=True)
 
 
+def copy_pose_markers(source_action, target_action):
+    """Copy all pose markers from source action to target action."""
+    if not source_action or not target_action:
+        return
+    if source_action.pose_markers:
+        for marker in source_action.pose_markers:
+            new_marker = target_action.pose_markers.new(name=marker.name)
+            new_marker.frame = marker.frame
+
+
+def find_morrowind_rig_controlled_by(arp_rig):
+    """
+    Find the Morrowind rig (armature starting with 'Bip01') that is controlled by the given ARP rig.
+    Checks if the first bone of each Bip01 armature has a constraint targeting the ARP rig.
+    Returns the Morrowind rig object or None if not found.
+    """
+    for obj in bpy.data.objects:
+        if obj.type == 'ARMATURE' and (obj.name.startswith('Bip01') or obj.name.startswith('Bip01.')):
+            # Check the first bone's constraints
+            if obj.pose.bones:
+                first_bone = obj.pose.bones[0]
+                for constraint in first_bone.constraints:
+                    if constraint.target == arp_rig:
+                        return obj
+    return None
+
+
+def duplicate_rig_setup(source_armature):
+    """
+    Duplicate the entire rig setup: the given armature, any controlled Morrowind rig, and attached meshes.
+    Returns a tuple: (duplicated_main_armature, duplicated_morrowind_rig_or_none, duplicated_meshes_list)
+    """
+    # Find the Morrowind rig controlled by this armature (if any)
+    morrowind_rig = find_morrowind_rig_controlled_by(source_armature)
+    
+    # Find all meshes that are children of either armature
+    meshes_to_duplicate = []
+    for child in source_armature.children:
+        if child.type == 'MESH':
+            meshes_to_duplicate.append(child)
+    if morrowind_rig:
+        for child in morrowind_rig.children:
+            if child.type == 'MESH' and child not in meshes_to_duplicate:
+                meshes_to_duplicate.append(child)
+    
+    # Select all objects to duplicate
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    
+    objects_to_duplicate = [source_armature]
+    if morrowind_rig:
+        objects_to_duplicate.append(morrowind_rig)
+    objects_to_duplicate.extend(meshes_to_duplicate)
+    
+    for obj in objects_to_duplicate:
+        obj.select_set(True)
+    
+    # Duplicate
+    bpy.ops.object.duplicate_move()
+    
+    # Get the duplicated objects (they are now selected and active)
+    duplicated_objects = list(bpy.context.selected_objects)
+    
+    # Find which duplicated object corresponds to which original
+    duplicated_main = None
+    duplicated_morrowind = None
+    duplicated_meshes = []
+    
+    for dup_obj in duplicated_objects:
+        # Match by original name (Blender adds .001 suffix)
+        base_name = dup_obj.name.rsplit('.00', 1)[0] if '.00' in dup_obj.name else dup_obj.name
+        
+        if base_name == source_armature.name or dup_obj.name.startswith(source_armature.name + '.'):
+            duplicated_main = dup_obj
+        elif morrowind_rig and (base_name == morrowind_rig.name or dup_obj.name.startswith(morrowind_rig.name + '.')):
+            duplicated_morrowind = dup_obj
+        elif dup_obj.type == 'MESH':
+            duplicated_meshes.append(dup_obj)
+    
+    return duplicated_main, duplicated_morrowind, duplicated_meshes
+
+
+def prepare_arp_rig_for_export(arp_rig, report=None):
+    """
+    Prepare an AutoRig Pro rig for export by:
+    1. Finding the controlled Morrowind rig
+    2. Duplicating the entire rig setup
+    3. Baking the animation on the Morrowind rig duplicate while clearing constraints
+    
+    Args:
+        arp_rig: The ARP rig armature object to prepare
+        report: Optional report callback function for error messages (e.g., self.report)
+    
+    Returns the duplicated Morrowind rig with baked animation, or None if preparation fails.
+    """
+    def report_error(message):
+        if report:
+            report({'ERROR'}, message)
+        else:
+            print(f"ERROR: {message}")
+    
+    # Find the Morrowind rig controlled by this ARP rig
+    morrowind_rig = find_morrowind_rig_controlled_by(arp_rig)
+    if not morrowind_rig:
+        report_error(
+            f"Could not find a Morrowind rig (armature starting with 'Bip01') controlled by '{arp_rig.name}'. "
+            "Ensure the first bone of your Morrowind rig has a constraint targeting this ARP rig."
+        )
+        return None
+    
+    # Get the current action
+    if not arp_rig.animation_data or not arp_rig.animation_data.action:
+        report_error(
+            f"ARP rig '{arp_rig.name}' has no active animation action. "
+            "Make sure an action is assigned to the armature."
+        )
+        return None
+    
+    original_action = arp_rig.animation_data.action
+    original_action_name = original_action.name
+    
+    # Duplicate the entire rig setup
+    duplicated_arp, duplicated_morrowind, duplicated_meshes = duplicate_rig_setup(arp_rig)
+    
+    if not duplicated_morrowind:
+        # Cleanup on failure
+        for obj in [duplicated_arp] + duplicated_meshes:
+            if obj:
+                bpy.data.objects.remove(obj, do_unlink=True)
+        report_error(
+            f"Failed to duplicate the rig setup for '{arp_rig.name}'. "
+            "Check if there are any issues with the armature or its children."
+        )
+        return None
+    
+    # Get action frame range
+    keyframes = [kp.co[0] for fcurve in original_action.fcurves for kp in fcurve.keyframe_points]
+    if not keyframes:
+        # Cleanup on failure
+        for obj in [duplicated_arp, duplicated_morrowind] + duplicated_meshes:
+            if obj:
+                bpy.data.objects.remove(obj, do_unlink=True)
+        report_error(
+            f"Action '{original_action_name}' on '{arp_rig.name}' has no keyframes. "
+            "Cannot bake an empty action."
+        )
+        return None
+    
+    start_frame = int(min(keyframes))
+    end_frame = int(max(keyframes))
+    
+    # Set frame range
+    bpy.context.scene.frame_start = start_frame
+    bpy.context.scene.frame_end = end_frame
+    
+    # Select the duplicated Morrowind rig
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.object.select_all(action='DESELECT')
+    duplicated_morrowind.select_set(True)
+    bpy.context.view_layer.objects.active = duplicated_morrowind
+    
+    # Bake the action with visual keying and clear constraints
+    bpy.ops.object.mode_set(mode='POSE')
+    bpy.ops.nla.bake(
+        frame_start=start_frame,
+        frame_end=end_frame,
+        only_selected=False,
+        visual_keying=True,
+        clear_constraints=True,
+        clear_parents=False,
+        use_current_action=True,
+        bake_types={'POSE'}
+    )
+    
+    # Set interpolation to linear
+    baked_action = duplicated_morrowind.animation_data.action
+    if baked_action:
+        set_interpolation_to_linear(baked_action)
+        # Rename the baked action following naming conventions
+        if '[Raw]' in original_action_name:
+            baked_action.name = original_action_name.replace('[Raw]', '[Baked]')
+        else:
+            baked_action.name = f"[Baked] {remove_tags(original_action_name)}"
+        
+        # Copy pose markers from the original action to the baked action
+        copy_pose_markers(original_action, baked_action)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    
+    # Remove the duplicated ARP rig and meshes (we only need the Morrowind rig)
+    if duplicated_arp:
+        bpy.data.objects.remove(duplicated_arp, do_unlink=True)
+    for mesh in duplicated_meshes:
+        bpy.data.objects.remove(mesh, do_unlink=True)
+    
+    return duplicated_morrowind
+
+
 
 class ExportAnimationOperator(bpy.types.Operator):
     bl_idname = "export.animation"
@@ -110,6 +308,32 @@ class ExportAnimationOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        # Ensure we're in object mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # Get the current object
+        obj = context.object
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "No armature selected.")
+            return {'CANCELLED'}
+
+        # Check if this is a Khajiit/Beast armature
+        is_beast_armature = "Khajiit" in obj.name or "Argonian" in obj.name
+        
+        # Check if this is an ARP rig (doesn't start with "Bip01" and is not a beast armature)
+        is_arp_rig = not (obj.name.startswith('Bip01') or obj.name.startswith('Bip01.')) and not is_beast_armature
+
+        # If ARP rig, prepare it for export (creates duplicate with baked Morrowind rig)
+        if is_arp_rig:
+            morrowind_rig = prepare_arp_rig_for_export(obj, self.report)
+            if not morrowind_rig:
+                return {'CANCELLED'}
+
+            # Switch to the prepared Morrowind rig for export
+            obj = morrowind_rig
+            bpy.context.view_layer.objects.active = obj
+            obj.select_set(True)
+
         # Access properties from the add-on preferences
         addon_prefs = context.preferences.addons[__package__].preferences
         export_folder = addon_prefs.export_folder
@@ -120,18 +344,13 @@ class ExportAnimationOperator(bpy.types.Operator):
         if export_as == '1ST_PERSON':
             reference_armature_name = "1st Person Reference Armat"
         elif export_as == '3RD_PERSON':
-            # Use "3rd Person Khajiit Reference Armature" if the action has the [Beast] tag
-            obj = context.object
-            if obj.animation_data and obj.animation_data.action and "[Beast]" in obj.animation_data.action.name:
+            # Use "3rd Person Khajiit Reference Armature" if the action has the [Beast] tag or if using a beast armature
+            if is_beast_armature or (obj.animation_data and obj.animation_data.action and "[Beast]" in obj.animation_data.action.name):
                 reference_armature_name = "3rd Person Khajiit Reference Armature"
             else:
                 reference_armature_name = "3rd Person Reference Armat"
 
-        # Ensure we're in object mode
-        bpy.ops.object.mode_set(mode='OBJECT')
-
         # Get the current object and its action
-        obj = context.object
         if obj.animation_data and obj.animation_data.action:
             original_action = obj.animation_data.action
             original_action_name = original_action.name
@@ -144,7 +363,6 @@ class ExportAnimationOperator(bpy.types.Operator):
                 obj.animation_data.action = temp_action
                 obj.animation_data.action_slot = temp_action.slots[0]
             elif has_raw_tag(original_action_name):
-
                 # Copy the action and rename it
                 temp_action = original_action.copy()
                 temp_action.name = replace_raw_with_baked(original_action_name)
@@ -165,7 +383,7 @@ class ExportAnimationOperator(bpy.types.Operator):
                 bpy.ops.nla.bake(frame_start=start_frame, frame_end=end_frame, only_selected=False, visual_keying=True, clear_constraints=False, clear_parents=False, use_current_action=True, bake_types={'OBJECT'})
                 set_interpolation_to_linear(temp_action)
             else:
-                self.report({'ERROR'}, "The action not start with the '[Raw]' or '[Baked]' tag. Aborting operation.")
+                self.report({'ERROR'}, "The action must start with the '[Raw]' or '[Baked]' tag. Aborting operation.")
                 return {'CANCELLED'}
             
 
@@ -196,11 +414,15 @@ class ExportAnimationOperator(bpy.types.Operator):
                 # Get the sanitized action name without tags
                 action_name = sanitize_filename(remove_tags(temp_action.name))
 
-                # Select the currently active armature if its name starts with "Bip01" or "Bip01."
+                # Select the currently active armature
                 current_armature = context.object
                 if current_armature and current_armature.type == 'ARMATURE':
                     original_name = current_armature.name  # Save the original name
-                    if not (current_armature.name.startswith('Bip01') or current_armature.name.startswith('Bip01.')):
+                    
+                    # Determine the temp name based on armature type
+                    # Beast armatures keep their name, Morrowind rigs are renamed to "Bip01"
+                    is_beast = "Khajiit" in original_name or "Argonian" in original_name
+                    if not is_beast and not (original_name.startswith('Bip01') or original_name.startswith('Bip01.')):
                         current_armature.name = "Bip01"  # Temporarily rename the armature
 
                     try:
@@ -215,7 +437,7 @@ class ExportAnimationOperator(bpy.types.Operator):
                         # Restore the original name after export
                         current_armature.name = original_name
                 else:
-                    self.report({'ERROR'}, "No valid armature selected or active armature name does not start with 'Bip01' or 'Bip01.'.")
+                    self.report({'ERROR'}, "No valid armature selected.")
                     return {'CANCELLED'}
             finally:
                 # Ensure the reference armature is removed from the scene
@@ -235,36 +457,74 @@ class TransferToBeastsOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # Access the current object and its action
+        # Ensure we're in object mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        
+        # Get the current object
         obj = context.object
-        if not obj or not obj.animation_data or not obj.animation_data.action:
+        if not obj or obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "No armature selected.")
+            return {'CANCELLED'}
+        
+        # Check if this is an ARP rig (doesn't start with "Bip01")
+        is_arp_rig = not (obj.name.startswith('Bip01') or obj.name.startswith('Bip01.'))
+        
+        # If ARP rig, prepare it for export (creates duplicate with baked Morrowind rig)
+        if is_arp_rig:
+            morrowind_rig = prepare_arp_rig_for_export(obj, self.report)
+            if not morrowind_rig:
+                return {'CANCELLED'}
+            
+            # Switch to the prepared Morrowind rig for transfer
+            obj = morrowind_rig
+            bpy.context.view_layer.objects.active = obj
+            obj.select_set(True)
+        
+        # Verify the armature is a Morrowind rig (starts with Bip01)
+        if not (obj.name.startswith('Bip01') or obj.name.startswith('Bip01.')):
+            self.report({'ERROR'}, "Selected armature must be a Morrowind rig (name starting with 'Bip01') or an ARP rig controlling one.")
+            return {'CANCELLED'}
+        
+        # Get the current action
+        if not obj.animation_data or not obj.animation_data.action:
             self.report({'ERROR'}, "No animation action found on the current object.")
             return {'CANCELLED'}
-
+        
         original_action = obj.animation_data.action
         original_action_name = original_action.name
-
-        # Ensure the action has the '[Raw]' tag
-        if not has_raw_tag(original_action_name):
-            self.report({'ERROR'}, "The action does not contain the '[Raw]' tag. Aborting operation.")
+        
+        # Handle action naming - accept both [Raw] and [Baked] tags
+        if "[Baked]" in original_action_name:
+            # Action is already baked, use it directly
+            cloned_action = original_action
+            
+            # Get frame range from the existing action
+            keyframes = [kp.co[0] for fcurve in cloned_action.fcurves for kp in fcurve.keyframe_points]
+            if not keyframes:
+                self.report({'ERROR'}, f"Action '{original_action_name}' has no keyframes. Cannot transfer an empty action.")
+                return {'CANCELLED'}
+            start_frame = int(min(keyframes))
+            end_frame = int(max(keyframes))
+        elif has_raw_tag(original_action_name):
+            # Bake the action for the current object
+            cloned_action = original_action.copy()
+            cloned_action.name = replace_raw_with_baked(original_action_name)
+            obj.animation_data.action = cloned_action
+            obj.animation_data.action_slot = cloned_action.slots[0]
+            
+            keyframes = [kp.co[0] for fcurve in cloned_action.fcurves for kp in fcurve.keyframe_points]
+            start_frame = int(min(keyframes))
+            end_frame = int(max(keyframes))
+            
+            bpy.context.scene.frame_start = start_frame
+            bpy.context.scene.frame_end = end_frame
+            
+            bpy.ops.nla.bake(frame_start=start_frame, frame_end=end_frame, only_selected=False, visual_keying=True, clear_constraints=False, clear_parents=False, use_current_action=True, bake_types={'POSE'})
+            bpy.ops.nla.bake(frame_start=start_frame, frame_end=end_frame, only_selected=False, visual_keying=True, clear_constraints=False, clear_parents=False, use_current_action=True, bake_types={'OBJECT'})
+            set_interpolation_to_linear(cloned_action)
+        else:
+            self.report({'ERROR'}, "The action must start with the '[Raw]' or '[Baked]' tag. Aborting operation.")
             return {'CANCELLED'}
-
-        # Step 1: Bake the action for the current object
-        cloned_action = original_action.copy()
-        cloned_action.name = replace_raw_with_baked(original_action_name)
-        obj.animation_data.action = cloned_action
-        obj.animation_data.action_slot = cloned_action.slots[0]
-
-        keyframes = [kp.co[0] for fcurve in cloned_action.fcurves for kp in fcurve.keyframe_points]
-        start_frame = int(min(keyframes))
-        end_frame = int(max(keyframes))
-
-        bpy.context.scene.frame_start = start_frame
-        bpy.context.scene.frame_end = end_frame
-
-        bpy.ops.nla.bake(frame_start=start_frame, frame_end=end_frame, only_selected=False, visual_keying=True, clear_constraints=False, clear_parents=False, use_current_action=True, bake_types={'POSE'})
-        bpy.ops.nla.bake(frame_start=start_frame, frame_end=end_frame, only_selected=False, visual_keying=True, clear_constraints=False, clear_parents=False, use_current_action=True, bake_types={'OBJECT'})
-        set_interpolation_to_linear(cloned_action)
         
         # Load related armatures
         driver_armature = bpy.data.objects.get("Khajiit Retarget Driver Armature")
@@ -301,12 +561,8 @@ class TransferToBeastsOperator(bpy.types.Operator):
         baked_action = khajiit_armature.animation_data.action
         if baked_action:
             baked_action.name = f"[Baked][Beast] Beast {remove_tags(original_action_name)}"
-
             # Transfer markers from the original action to the baked action
-            if original_action and original_action.pose_markers:
-                for marker in original_action.pose_markers:
-                    new_marker = baked_action.pose_markers.new(name=marker.name)
-                    new_marker.frame = marker.frame
+            copy_pose_markers(original_action, baked_action)
 
         # Ensure the Khajiit armature is selected and active
         bpy.ops.object.mode_set(mode='OBJECT')

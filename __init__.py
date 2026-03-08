@@ -1,15 +1,15 @@
 bl_info = {
     "name": "Bizarre Morrowind Anim Utils",
-    "description": "Hybrid IK/FK manipulations and constrained assist for Blender",
+    "description": "Animation retargeting and export utilities for Morrowind",
     "author": "Maksim Eremenko",
-    "version": (1, 1, 0),
+    "version": (1, 2, 0),
     "blender": (4, 3, 0),
     "location": "View3D > UI > Bizarre Anim",
     "category": "Animation",
 }
 
 import bpy
-from . import operators, panels, utils, keymaps, handlers, exporter
+from . import operators, panels, utils, keymaps, exporter
 
 class BizarreAnimUtils(bpy.types.AddonPreferences):
     bl_idname = __package__
@@ -47,21 +47,15 @@ def register():
     operators.register()
     panels.register()
     keymaps.register()
-    handlers.register()
     bpy.utils.register_class(BizarreAnimUtils)
 
 
 def unregister():
-    # Unregister handlers, panels, operators, and keymaps first
+    # Unregister panels, operators, and keymaps first
     keymaps.unregister()
     panels.unregister()
     operators.unregister()
-    handlers.unregister()
     bpy.utils.unregister_class(BizarreAnimUtils)
-
-    # Safely remove the "This Rig is Bizarre" property from armature objects
-    if hasattr(bpy.types.Object, "bizarre_rig"):
-        del bpy.types.Object.bizarre_rig
 
 if __name__ == "__main__":
     register()
