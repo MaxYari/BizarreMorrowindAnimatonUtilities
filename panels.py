@@ -79,6 +79,9 @@ class ExportPanel(bpy.types.Panel):
         add_separator(column, factor=1.0, separator_type='LINE')
         add_separator(column, factor=1.0, separator_type='SPACE')
         column.operator(ExportAnimationOperator.bl_idname, text="Export Animation")
+        row = column.row(align=True)
+        row.prop(addon_prefs, "enable_root_motion_arp", text="Root Motion (ARP)")
+        row.label(text="", icon='INFO')
         add_separator(column, factor=1.0, separator_type='SPACE')
         
 

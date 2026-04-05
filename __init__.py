@@ -17,7 +17,7 @@ class BizarreAnimUtils(bpy.types.AddonPreferences):
     export_folder: bpy.props.StringProperty(
         name="Export Folder",
         description="Folder where exported animations will be saved",
-        default="C:/Modding/MO2/DATA/mods/Experiments/Animations/xbase_anim.1st/",
+        default="~/Morrowind Animations/",
         subtype='DIR_PATH'
     )
 
@@ -25,6 +25,18 @@ class BizarreAnimUtils(bpy.types.AddonPreferences):
         name="Retained Extra Bones",
         description="Comma-separated list of extra bones to retain during export",
         default=""
+    )
+
+    enable_root_motion_arp: bpy.props.BoolProperty(
+        name="Root Motion (ARP)",
+        description=(
+            "Bake root motion from the c_traj bone into the exported animation. "
+            "Only works with AutoRig Pro rigs. "
+            "If you have not animated c_traj manually, use AutoRig Pro's built-in "
+            "'Extract Root Motion' button first to transfer hip translation onto c_traj, "
+            "then export with this option enabled."
+        ),
+        default=False
     )
 
     export_as: bpy.props.EnumProperty(
