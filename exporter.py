@@ -244,7 +244,7 @@ def load_objects_from_blend_bulk(filepath, object_names):
             root_objects.append(root_obj)
 
     # Clean up unlinked objects
-    for obj_name, obj in loaded_objects.items():
+    for obj in loaded_objects.values():
         if obj and obj.users == 0:  # If the object is not linked to any scene or collection
             bpy.data.objects.remove(obj, do_unlink=True)
 
@@ -283,42 +283,50 @@ def copy_pose_markers(source_action, target_action):
 def find_morrowind_rig_controlled_by(arp_rig):
     """
     Find the Morrowind rig (armature starting with 'Bip01') that is controlled by the given ARP rig.
-    Checks if the first bone of each Bip01 armature has a constraint targeting the ARP rig.
+    Searches ALL bones (not just the first) so bone ordering never causes a miss.
+    Uses bpy.data.objects so hidden objects are included.
     Returns the Morrowind rig object or None if not found.
     """
     print(f"DEBUG: Finding morrowind rig for arp_rig: {arp_rig.name}")
     for obj in bpy.data.objects:
-        if obj.type == 'ARMATURE':
-            print(f"DEBUG: Checking armature: {obj.name}")
-            if (obj.name.startswith('Bip01') or obj.name.startswith('Bip01.')):
-                print(f"DEBUG: {obj.name} starts with Bip01")
-                if obj.pose.bones:
-                    first_bone = obj.pose.bones[0]
-                    for constraint in first_bone.constraints:
-                        print(f"DEBUG: Constraint target: {constraint.target.name if constraint.target else 'None'}")
-                        if constraint.target == arp_rig:
-                            print(f"DEBUG: Found morrowind_rig: {obj.name}")
-                            return obj
+        if obj.type != 'ARMATURE':
+            continue
+        if not (obj.name.startswith('Bip01') or obj.name.startswith('Bip01.')):
+            continue
+        print(f"DEBUG: Checking armature: {obj.name}")
+        if not obj.pose:
+            continue
+        for bone in obj.pose.bones:
+            for constraint in bone.constraints:
+                print(f"DEBUG: Bone {bone.name} constraint target: {constraint.target.name if constraint.target else 'None'}")
+                if constraint.target == arp_rig:
+                    print(f"DEBUG: Found morrowind_rig: {obj.name}")
+                    return obj
     print("DEBUG: No morrowind rig found")
     return None
 
 
 def duplicate_rig_setup(morrowind_rig):
     """
-    Duplicate the Morrowind rig (without meshes, to avoid unnecessary duplication).
+    Duplicate the Morrowind rig using the Python API so that any visibility or
+    selectability state on the original rig is irrelevant.
+    The duplicate is linked into the scene's root collection and is always visible,
+    so subsequent bake ops can target it without issue.
     Returns the duplicated Morrowind rig.
     """
     print(f"DEBUG: Duplicating {morrowind_rig.name}")
+
+    dup = morrowind_rig.copy()
+    dup.data = morrowind_rig.data.copy()
+    bpy.context.scene.collection.objects.link(dup)
+
     bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
-    morrowind_rig.select_set(True)
-    bpy.context.view_layer.objects.active = morrowind_rig
-    bpy.ops.object.duplicate_move()
-    
-    duplicated_morrowind = bpy.context.active_object
-    print(f"DEBUG: Duplicated obj is {duplicated_morrowind.name}")
-    
-    return duplicated_morrowind
+    dup.select_set(True)
+    bpy.context.view_layer.objects.active = dup
+
+    print(f"DEBUG: Duplicated obj is {dup.name}")
+    return dup
 
 
 
@@ -675,8 +683,13 @@ class TransferToBeastsOperator(bpy.types.Operator):
                 driver_armature, khajiit_armature = load_objects_from_blend_bulk(refArmaturesFilePath, ["Khajiit Retarget Driver Armature","Khajiit Armature"])
                 if not driver_armature or not khajiit_armature:
                     self.report({'ERROR'}, "Driver armature 'Khajiit Retarget Driver Armature' or 'Khajiit Armature' not found in external file.")
-                    return {'CANCELLED'}      
-            
+                    return {'CANCELLED'}
+
+            # The armatures may be saved with a positional offset in the blend file.
+            # Force both to the origin so they overlay the Bip01 rig correctly.
+            driver_armature.location = (0.0, 0.0, 0.0)
+            khajiit_armature.location = (0.0, 0.0, 0.0)
+
             driver_armature.animation_data.action = cloned_action
             driver_armature.animation_data.action_slot = cloned_action.slots[0]
             

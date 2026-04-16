@@ -2,8 +2,8 @@ bl_info = {
     "name": "Bizarre Morrowind Anim Utils",
     "description": "Animation retargeting and export utilities for Morrowind",
     "author": "Maksim Eremenko",
-    "version": (1, 2, 0),
-    "blender": (4, 3, 0),
+    "version": (1, 5, 0),
+    "blender": (5, 1, 0),
     "location": "View3D > UI > Bizarre Anim",
     "category": "Animation",
 }
