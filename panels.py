@@ -1,5 +1,5 @@
 import bpy
-from .exporter import ExportAnimationOperator, TransferToBeastsOperator
+from .exporter import ExportAnimationOperator, TransferToBeastsOperator, get_prefs
 from .operators import MuteConstraintsOperator, RestoreConstraintsOperator
 
 # Check Blender version
@@ -42,7 +42,11 @@ class ExportPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        addon_prefs = context.preferences.addons[__package__].preferences
+        # Unguarded, a KeyError here errors the whole panel.
+        addon_prefs = get_prefs(context)
+        if addon_prefs is None:
+            layout.label(text="Addon preferences unavailable.", icon="ERROR")
+            return
 
         box = layout.box()
         column = box.column()
@@ -102,6 +106,7 @@ class ExportPanel(bpy.types.Panel):
         row.operator(RestoreConstraintsOperator.bl_idname, text="Restore Constraints")
 
         column.label(text="Removing constraints allows you to properly view baked actions.", icon="INFO")
+        column.prop(addon_prefs, "verbose_logging", text="Verbose Logging")
         add_separator(column, factor=1.0, separator_type='SPACE')
 
 

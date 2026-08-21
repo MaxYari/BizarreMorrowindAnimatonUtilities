@@ -46,3 +46,84 @@ Loaded from `morrowind_reference_armatures.blend` at runtime using `bpy.data.lib
 - Uses Blender 4.x layered action API (`action.layers` / `strip.fcurves`) with a legacy `action.fcurves` fallback in `iter_fcurves`.
 - `panels.py` has a version check for `separator(type=...)` (4.3+).
 - `utils.py` has a bone select compatibility shim for Blender 5.1+.
+
+
+## Beast retargeting: do not touch the armature transforms
+
+`morrowind_reference_armatures.blend` stores the beast rigs at an **authored**
+offset:
+
+    Khajiit Armature                   loc (1.7564, 0.0171, 0.7628)  rot Z 90 deg
+    Khajiit Retarget Driver Armature   loc (1.7570, 0.0171, 0.7634)  rot Z 90 deg
+
+They are a matched pair, deliberately parked ~1.9 units from the Bip01 rig so the
+skeletons do not overlap in the viewport. Every reference armature in the file
+carries the same 90 degree Z rotation.
+
+That offset must not survive a transfer. Every retarget constraint in the file
+evaluates in WORLD space (54 Copy Rotation, 4 Copy Location, 4 IK, 1 Copy
+Transforms, 1 Child Of; the four flagged CUSTOM have no custom space object, so
+Blender falls back to World). The 4 Copy Location constraints place Khajiit bones
+at the driver's bone positions in world space, so driver and Khajiit MUST share a
+world transform -- and the driver is dragged to the source rig by the action's
+object-level keys.
+
+So `TransferToBeastsOperator` copies `source_obj.matrix_world` onto both beast
+rigs before baking. Copy the FULL matrix, never just `.location`: v1.5.0 zeroed
+location only, which assumed the source rig was at the origin and left the
+authored 90 degree Z rotation in place.
+
+Why it is destructive:
+
+* `io_scene_mw.get_root_output()` tests `np.allclose(roots[0].matrix_local, ID44,
+  rtol=0, atol=1e-4)`. Any non-identity root transform makes it wrap the armature
+  in an extra `NiNode` named after the file, demoting the armature to a child that
+  carries the offset. Zeroing location while leaving the 90 degree rotation does
+  not reach identity, so this branch is taken either way -- just with the wrong
+  numbers.
+* `bake_action_on_armature` bakes `bake_types={'OBJECT'}` with
+  `visual_keying=True`, so whatever object transform is live at bake time becomes
+  object-level keys inside the action. A transform error is therefore baked into
+  the `[Baked][Beast]` action and cannot be fixed by re-exporting.
+
+`beast_rigs_are_zeroed()` detects rigs left at exactly (0,0,0) by v1.5.0 and
+re-appends them. Exact zero is safe as a fingerprint because the authored values
+are never zero.
+
+## Armature rename on export
+
+`ExportAnimationOperator` renames the armature object to `Bip01` for the duration
+of the export, **except** for beast armatures, which keep their own name. This
+block is byte-identical to commits `2673858` and `8bef591`. v1.6.0 made the
+rename unconditional and that broke every non-beast export; it was reverted in
+1.6.1. Leave it alone.
+
+## Blender action API
+
+Go through `exporter.iter_fcurve_containers()`, which probes
+`layer.strips[].channelbags[].fcurves`, then `layer.strips[].fcurves`, and falls
+back to `action.fcurves` only when the layered walk found nothing. Do not
+reintroduce an `if hasattr(action, "layers") / elif hasattr(action, "fcurves")`
+chain: on 4.4+ an action has both, so the `elif` is unreachable and bone
+filtering silently becomes a no-op.
+
+
+## The beast rig's Child Of constraint
+
+`Khajiit Armature` has an OBJECT-level Child Of constraint targeting
+`Khajiit Retarget Driver Armature`, all nine channels on, with a baked inverse
+matrix (translation `(-0.0171, 1.7577, -0.7640)` = the inverse of the driver's
+authored world transform).
+
+Child Of evaluates as `world = target_world @ inverse_matrix @ basis`. Assigning
+`obj.matrix_world` writes the BASIS only -- Blender does not invert constraints
+out -- so the constraint overwrites the result on the next depsgraph evaluation.
+Never try to place this rig with a `matrix_world` assignment alone; v1.6.2 and
+v1.6.3 both failed that way.
+
+To relocate the pair: move the driver, set the Khajiit basis, then re-derive
+`constraint.inverse_matrix = constraint.target.matrix_world.inverted_safe()`.
+That is the Set Inverse button, and it keeps root-motion propagation intact.
+
+Do not delete, mute or clear the constraint: it is what carries the driver's root
+motion onto the beast rig.

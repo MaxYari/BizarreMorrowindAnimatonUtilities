@@ -2,8 +2,8 @@ bl_info = {
     "name": "Bizarre Morrowind Anim Utils",
     "description": "Animation retargeting and export utilities for Morrowind",
     "author": "Maksim Eremenko",
-    "version": (1, 5, 0),
-    "blender": (5, 1, 0),
+    "version": (1, 6, 4),
+    "blender": (4, 4, 0),
     "location": "View3D > UI > Bizarre Anim",
     "category": "Animation",
 }
@@ -17,7 +17,7 @@ class BizarreAnimUtils(bpy.types.AddonPreferences):
     export_folder: bpy.props.StringProperty(
         name="Export Folder",
         description="Folder where exported animations will be saved",
-        default="~/Morrowind Animations/",
+        default="//",
         subtype='DIR_PATH'
     )
 
@@ -49,17 +49,26 @@ class BizarreAnimUtils(bpy.types.AddonPreferences):
         default='1ST_PERSON'
     )
 
+    verbose_logging: bpy.props.BoolProperty(
+        name="Verbose Logging",
+        description="Print detailed diagnostics to the system console. Turn on when reporting a bug",
+        default=False
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "export_folder")
         layout.prop(self, "retained_extra_bones")
-        layout.prop(self, "export_as")  # Add the dropdown to the preferences UI
+        layout.prop(self, "export_as")
+        layout.prop(self, "enable_root_motion_arp")
+        layout.prop(self, "verbose_logging")
 
 def register():
+    # Preferences must exist before any panel or operator reads them.
+    bpy.utils.register_class(BizarreAnimUtils)
     operators.register()
     panels.register()
     keymaps.register()
-    bpy.utils.register_class(BizarreAnimUtils)
 
 
 def unregister():
